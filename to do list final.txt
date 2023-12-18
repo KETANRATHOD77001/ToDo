@@ -1,0 +1,295 @@
+npm init -y
+npm i express mongoose nodemon cors
+
+create server.js	#paste code
+	-> nodemon server.js
+	-> localhost:8080/Todos	body json {"text":"ketan"}
+
+npx create-react-app client
+npm install concurrently --save-dev	#In root directory
+
+package.json #In root directory
+  "scripts": {
+    "start": "node server.js",
+    "start-watch": "nodemon server.js",
+    "dev": "concurrently \"npm run start-watch\" \"cd client && npm start\""
+  },	
+
+package.json #In client directory
+	"proxy": "http://localhost:5000"
+
+App.js	#paste code
+
+npm i axios
+
+update App.css
+
+
+--App.js------------------------------------------------------------------------
+
+// src/App.js
+
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import './App.css';
+
+function App() {
+  const [todos, setTodos] = useState([]);
+  const [newTodo, setNewTodo] = useState('');
+  const [updatedTodo, setUpdatedTodo] = useState({ id: null, text: '' });
+
+  useEffect(() => {
+    // Fetch todos on component mount
+    fetchTodos();
+  }, []);
+
+  const fetchTodos = async () => {
+    try {
+      const response = await axios.get('http://localhost:8080/todos');
+      setTodos(response.data);
+    } catch (error) {
+      console.error('Error fetching todos:', error);
+    }
+  };
+
+  const addTodo = async () => {
+    try {
+      console.log("1");
+      const response = await axios.post('http://localhost:8080/todos', {
+        text: newTodo,
+      });
+      console.log("2");
+
+      setTodos([...todos, response.data]);
+      setNewTodo('');
+    } catch (error) {
+      console.error('Error adding todo:', error);
+    }
+  };
+
+  const updateTodo = async () => {
+    try {
+      const response = await axios.put(`http://localhost:8080/todos/${updatedTodo.id}`, {
+        text: updatedTodo.text,
+      });
+      setTodos(todos.map((todo) => (todo._id === updatedTodo.id ? response.data : todo)));
+      setUpdatedTodo({ id: null, text: '' });
+    } catch (error) {
+      console.error('Error updating todo:', error);
+    }
+  };
+
+  const deleteTodo = async (id) => {
+    try {
+      await axios.delete(`http://localhost:8080/todos/${id}`);
+      setTodos(todos.filter((todo) => todo._id !== id));
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+    }
+  };
+
+  return (
+    <div className="App">
+      <h1>Todo App</h1>
+      <div>
+        <input
+          type="text"
+          placeholder="New todo"
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
+        />
+        <button onClick={addTodo}>Add Todo</button>
+      </div>
+      <ul>
+        {todos.map((todo) => (
+          <li key={todo._id}>
+            {todo.text}{' '}
+            <button onClick={() => setUpdatedTodo({ id: todo._id, text: todo.text })}>
+              Update
+            </button>{' '}
+            <button onClick={() => deleteTodo(todo._id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+      {updatedTodo.id && (
+        <div>
+          <input
+            type="text"
+            placeholder="Update todo"
+            value={updatedTodo.text}
+            onChange={(e) => setUpdatedTodo({ ...updatedTodo, text: e.target.value })}
+          />
+          <button onClick={updateTodo}>Update Todo</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
+
+--Css.css------------------------------------------------------------------------
+/* App.css */
+
+body {
+  font-family: 'Arial', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f4f4f4;
+}
+
+.App {
+  max-width: 600px;
+  margin: 50px auto;
+  padding: 20px;
+  background-color: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+  text-align: center;
+  color: #333;
+}
+
+input[type="text"] {
+  width: 70%;
+  padding: 8px;
+  margin-right: 8px;
+  box-sizing: border-box;
+}
+
+button {
+  padding: 8px;
+  background-color: #4caf50;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  margin: 10px 0;
+  padding: 10px;
+  background-color: #eee;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+li button {
+  margin-left: 8px;
+  background-color: #f44336;
+}
+
+li button:hover {
+  background-color: #d32f2f;
+}
+
+div input[type="text"] {
+  width: 60%;
+}
+
+div button {
+  width: 30%;
+}
+
+--server.js------------------------------------------------------------------------
+
+const express = require('express');
+const mongoose = require('mongoose');
+
+const app = express();
+const port = 8080;
+const url = 'mongodb://127.0.0.1:27017/test';
+
+const cors = require('cors');
+app.use(cors());
+
+// Middleware for parsing JSON requests
+app.use(express.json());
+
+const connectDB = async () => {
+    try {
+        const conn = await mongoose.connect(url);
+        console.log(`Connected to mongodb database ${conn.connection.host}`);
+    } catch (error) {
+        console.log(`Error in Mongodb ${error}`);
+    }
+};
+connectDB();
+
+// Create schema for todo
+const Schema = mongoose.Schema;
+const TodoSchema = new Schema({
+    text: {
+        type: String,
+        required: [true, 'The todo text field is required'],
+    },
+}, { collection: 'todos' });
+
+// Create model for todo
+const Todo = mongoose.model('todo', TodoSchema);
+
+
+// Route to get all todos
+app.get('/todos', async (req, res) => {
+    try {
+        const todos = await Todo.find();
+        res.json(todos);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route to create a new todo
+app.post('/todos', async (req, res) => {
+    try {
+        const newTodo = new Todo({ text: req.body.text });
+        const savedTodo = await newTodo.save();
+        res.status(201).json(savedTodo);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route to update a todo
+app.put('/todos/:id', async (req, res) => {
+    try {
+        const updatedTodo = await Todo.findByIdAndUpdate(
+            req.params.id,
+            { text: req.body.text },
+            { new: true }
+        );
+        res.json(updatedTodo);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Route to delete a todo
+app.delete('/todos/:id', async (req, res) => {
+    try {
+        const deletedTodo = await Todo.findByIdAndDelete(req.params.id);
+        res.json(deletedTodo);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// Start the server
+app.listen(port, () => {
+    console.log(`Server is running at http://localhost:${port}`);
+});
+
+
+
